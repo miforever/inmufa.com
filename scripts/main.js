@@ -119,6 +119,78 @@ function initSpecular() {
   });
 }
 
+/**
+ * Eases wheel scrolling toward a target position.
+ * Drives the real scroll offset rather than transforming a wrapper, so the
+ * sticky nav, the native scrollbar and find-in-page all keep working.
+ * Touch is left alone — mobile already has momentum of its own.
+ */
+function initSmoothScroll() {
+  const coarsePointer = matchMedia('(pointer: coarse)').matches;
+  if (prefersReducedMotion || coarsePointer) return;
+
+  const EASE = 0.115;
+  const LINE_HEIGHT = 16;
+  const SETTLE = 0.4;
+
+  const root = document.documentElement;
+  let target = scrollY;
+  let animating = false;
+
+  const maxScroll = () => root.scrollHeight - innerHeight;
+
+  const step = () => {
+    const distance = target - scrollY;
+    if (Math.abs(distance) < SETTLE) {
+      scrollTo(0, target);
+      animating = false;
+      return;
+    }
+    scrollTo(0, scrollY + distance * EASE);
+    requestAnimationFrame(step);
+  };
+
+  const glideTo = (position) => {
+    target = Math.max(0, Math.min(position, maxScroll()));
+    if (animating) return;
+    animating = true;
+    requestAnimationFrame(step);
+  };
+
+  addEventListener(
+    'wheel',
+    (event) => {
+      if (event.ctrlKey) return; // pinch zoom
+      event.preventDefault();
+      const delta = event.deltaMode === 1 ? event.deltaY * LINE_HEIGHT : event.deltaY;
+      glideTo(target + delta);
+    },
+    { passive: false }
+  );
+
+  // Anything that moves the page by other means owns the target again.
+  const resync = () => { if (!animating) target = scrollY; };
+  addEventListener('scroll', resync, { passive: true });
+  addEventListener('resize', resync, { passive: true });
+  addEventListener('keydown', resync);
+  addEventListener('mousedown', resync);
+
+  // Take over in-page links so they ease instead of jumping.
+  root.style.scrollBehavior = 'auto';
+  document.querySelectorAll('a[href^="#"]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      const id = link.getAttribute('href');
+      const destination = id === '#top' ? document.body : document.querySelector(id);
+      if (!destination) return;
+      event.preventDefault();
+      const offset = id === '#top' ? 0 : destination.getBoundingClientRect().top + scrollY - 90;
+      glideTo(offset);
+      history.replaceState(null, '', id);
+    });
+  });
+}
+
+initSmoothScroll();
 initProgressBar();
 initReveals();
 initCounters();
