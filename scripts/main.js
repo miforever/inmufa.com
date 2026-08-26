@@ -157,10 +157,15 @@ function initSmoothScroll() {
     requestAnimationFrame(step);
   };
 
+  // Mouse wheels arrive in coarse whole-number steps and benefit from easing.
+  // Trackpads already carry OS momentum, so easing them only adds lag.
+  const isMouseWheel = (event) =>
+    event.deltaMode === 1 || (Math.abs(event.deltaY) >= 50 && Number.isInteger(event.deltaY));
+
   addEventListener(
     'wheel',
     (event) => {
-      if (event.ctrlKey) return; // pinch zoom
+      if (event.ctrlKey || !isMouseWheel(event)) return;
       event.preventDefault();
       const delta = event.deltaMode === 1 ? event.deltaY * LINE_HEIGHT : event.deltaY;
       glideTo(target + delta);
